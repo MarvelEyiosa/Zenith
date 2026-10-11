@@ -1,0 +1,183 @@
+{
+  "transactions": [
+    {
+      "transactionRef": "TXN-1001",
+      "amountMinor": 35000,
+      "currency": "NGN",
+      "recipientId": "ZENITH_MERCHANT_01",
+      "status": "SUCCESS",
+      "orderRef": "ORD-101",
+      "fulfilledByOrderRef": null,
+      "isAvailable": true,
+      "issuerId": "ZENITH_BANK"
+    },
+    {
+      "transactionRef": "TXN-1002",
+      "amountMinor": 3500,
+      "currency": "NGN",
+      "recipientId": "ZENITH_MERCHANT_01",
+      "status": "SUCCESS",
+      "orderRef": "ORD-102",
+      "fulfilledByOrderRef": "ORD-901",
+      "isAvailable": true,
+      "issuerId": "ZENITH_BANK"
+    },
+    {
+      "transactionRef": "TXN-1003",
+      "amountMinor": 48000,
+      "currency": "NGN",
+      "recipientId": "ZENITH_MERCHANT_01",
+      "status": "PENDING",
+      "orderRef": "ORD-103",
+      "fulfilledByOrderRef": null,
+      "isAvailable": true,
+      "issuerId": "ZENITH_BANK"
+    },
+    {
+      "transactionRef": "TXN-1004",
+      "amountMinor": 28000,
+      "currency": "NGN",
+      "recipientId": "OTHER_ACCOUNT_77",
+      "status": "SUCCESS",
+      "orderRef": "ORD-104",
+      "fulfilledByOrderRef": null,
+      "isAvailable": true,
+      "issuerId": "ZENITH_BANK"
+    },
+    {
+      "transactionRef": "TXN-1005",
+      "amountMinor": 120000,
+      "currency": "NGN",
+      "recipientId": "ZENITH_MERCHANT_01",
+      "status": "REVERSED",
+      "orderRef": "ORD-105",
+      "fulfilledByOrderRef": null,
+      "isAvailable": true,
+      "issuerId": "ZENITH_BANK"
+    },
+    {
+      "transactionRef": "TXN-1006",
+      "amountMinor": 175000,
+      "currency": "NGN",
+      "recipientId": "ZENITH_MERCHANT_01",
+      "status": "UNAVAILABLE",
+      "orderRef": "ORD-106",
+      "fulfilledByOrderRef": null,
+      "isAvailable": false,
+      "issuerId": "ZENITH_BANK"
+    }
+  ],
+  "orders": [
+    {
+      "orderRef": "ORD-101",
+      "merchantId": "ZENITH_MERCHANT_01",
+      "customerId": "CUST-1001",
+      "amountMinor": 35000,
+      "currency": "NGN",
+      "recipientId": "ZENITH_MERCHANT_01",
+      "status": "FULFILLED",
+      "paymentTransactionRef": "TXN-1001",
+      "fulfilledByPaymentRef": "TXN-1001",
+      "createdAt": "2026-10-01T10:00:00.000Z"
+    },
+    {
+      "orderRef": "ORD-102",
+      "merchantId": "ZENITH_MERCHANT_01",
+      "customerId": "CUST-1002",
+      "amountMinor": 3500,
+      "currency": "NGN",
+      "recipientId": "ZENITH_MERCHANT_01",
+      "status": "PAID",
+      "paymentTransactionRef": "TXN-1002",
+      "fulfilledByPaymentRef": "TXN-1002",
+      "createdAt": "2026-10-02T09:20:00.000Z"
+    },
+    {
+      "orderRef": "ORD-103",
+      "merchantId": "ZENITH_MERCHANT_01",
+      "customerId": "CUST-1003",
+      "amountMinor": 48000,
+      "currency": "NGN",
+      "recipientId": "ZENITH_MERCHANT_01",
+      "status": "PENDING",
+      "paymentTransactionRef": "TXN-1003",
+      "fulfilledByPaymentRef": null,
+      "createdAt": "2026-10-02T12:00:00.000Z"
+    },
+    {
+      "orderRef": "ORD-104",
+      "merchantId": "ZENITH_MERCHANT_01",
+      "customerId": "CUST-1004",
+      "amountMinor": 28000,
+      "currency": "NGN",
+      "recipientId": "OTHER_ACCOUNT_77",
+      "status": "PAID",
+      "paymentTransactionRef": "TXN-1004",
+      "fulfilledByPaymentRef": null,
+      "createdAt": "2026-10-03T14:00:00.000Z"
+    },
+    {
+      "orderRef": "ORD-105",
+      "merchantId": "ZENITH_MERCHANT_01",
+      "customerId": "CUST-1005",
+      "amountMinor": 120000,
+      "currency": "NGN",
+      "recipientId": "ZENITH_MERCHANT_01",
+      "status": "CANCELLED",
+      "paymentTransactionRef": "TXN-1005",
+      "fulfilledByPaymentRef": null,
+      "createdAt": "2026-10-03T16:00:00.000Z"
+    },
+    {
+      "orderRef": "ORD-106",
+      "merchantId": "ZENITH_MERCHANT_01",
+      "customerId": "CUST-1006",
+      "amountMinor": 175000,
+      "currency": "NGN",
+      "recipientId": "ZENITH_MERCHANT_01",
+      "status": "OPEN",
+      "paymentTransactionRef": null,
+      "fulfilledByPaymentRef": null,
+      "createdAt": "2026-10-04T11:10:00.000Z"
+    }
+  ],
+  "verificationAttempts": [
+    {
+      "transactionRef": "TXN-1001",
+      "expectedAmountMinor": 35000,
+      "expectedCurrency": "NGN",
+      "expectedRecipientId": "ZENITH_MERCHANT_01",
+      "outcome": "PAYMENT_VERIFIED",
+      "explanation": "The signed receipt matches the trusted payment record and the payment is currently successful.",
+      "createdAt": "2026-10-11T10:27:14.419Z"
+    }
+  ],
+  "orderAttempts": [
+    {
+      "orderRef": "ORD-106",
+      "expectedAmountMinor": 175000,
+      "expectedCurrency": "NGN",
+      "expectedRecipientId": "ZENITH_MERCHANT_01",
+      "paymentReference": "TXN-1006",
+      "outcome": "ORDER_UNPAID",
+      "explanation": "This order has not yet been fully paid and should not be released.",
+      "createdAt": "2026-10-11T10:27:47.892Z"
+    }
+  ],
+  "messageAssessments": [
+    {
+      "status": "SUSPICIOUS",
+      "explanation": "This message contains warning signs commonly used in impersonation attempts.",
+      "rawMessage": "Your Zenith account has been blocked. Reply with your OTP to reactivate it.",
+      "reasons": "The message requests sensitive login credentials, OTP codes, or one-time codes.",
+      "createdAt": "2026-10-11T10:28:17.664Z"
+    },
+    {
+      "status": "NO_OBVIOUS_WARNING_SIGNS",
+      "explanation": "The message does not obviously resemble an official Zenith communication, but the system cannot prove authenticity.",
+      "rawMessage": "TRANSACTION SUCCESSFUL",
+      "reasons": "No obvious impersonation cues were detected, but authenticity remains unverified.",
+      "createdAt": "2026-10-11T10:53:00.694Z"
+    }
+  ]
+}

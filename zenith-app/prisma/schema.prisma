@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Merchant {
+  id             String   @id @default(cuid())
+  name           String
+  merchantId     String   @unique
+  accountId      String
+  status         String   @default("ACTIVE")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  orders         Order[]
+  verificationAttempts VerificationAttempt[]
+}
+
+model Order {
+  id                 String   @id @default(cuid())
+  orderRef           String   @unique
+  merchantId         String
+  merchant           Merchant @relation(fields: [merchantId], references: [id])
+  customerId         String
+  amountMinor        Int
+  currency           String
+  recipientId       String
+  status             String   @default("OPEN")
+  fulfilledByPayment String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model PaymentTransaction {
+  id                 String   @id @default(cuid())
+  transactionRef     String   @unique
+  amountMinor        Int
+  currency           String
+  recipientId        String
+  status             String
+  orderRef           String?
+  fulfilledByOrderRef String?
+  isAvailable        Boolean  @default(true)
+  issuerId           String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  receipts           ReceiptRecord[]
+  verificationAttempts VerificationAttempt[]
+}
+
+model ReceiptRecord {
+  id             String   @id @default(cuid())
+  receiptToken   String
+  transactionRef String
+  transaction    PaymentTransaction @relation(fields: [transactionRef], references: [transactionRef])
+  issuerId       String
+  amountMinor    Int
+  currency       String
+  recipientId    String
+  orderRef       String?
+  createdAt      DateTime @default(now())
+}
+
+model VerificationAttempt {
+  id                   String   @id @default(cuid())
+  merchantId           String?
+  merchant             Merchant? @relation(fields: [merchantId], references: [id])
+  transactionRef       String?
+  transaction          PaymentTransaction? @relation(fields: [transactionRef], references: [transactionRef])
+  expectedAmountMinor  Int?
+  expectedCurrency     String?
+  expectedRecipientId  String?
+  expectedOrderRef     String?
+  outcome              String
+  explanation          String
+  createdAt            DateTime @default(now())
+}
+
+model MessageAssessment {
+  id            String   @id @default(cuid())
+  status        String
+  explanation   String
+  rawMessage    String
+  reasons       String
+  createdAt     DateTime @default(now())
+}
+
+model AuditEvent {
+  id          String   @id @default(cuid())
+  eventType   String
+  actorType   String
+  actorId     String?
+  details     String
+  createdAt   DateTime @default(now())
+}
