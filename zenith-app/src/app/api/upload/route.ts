@@ -1,8 +1,27 @@
 import { NextResponse } from "next/server";
 
+import { getTransactions } from "@/lib/db";
+import { verifyPaymentClaim } from "@/lib/verification";
+
 function extractValue(text: string, pattern: RegExp) {
   const match = text.match(pattern);
   return match ? match[1] : undefined;
+}
+
+function extractLabeledValue(text: string, labels: string[]) {
+  const escapedLabels = labels
+    .sort((left, right) => right.length - left.length)
+    .map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const pattern = new RegExp(`^\\s*(?:${escapedLabels.join("|")})(?:\\s*[:=#-]\\s*|\\s+)(.+?)\\s*$`, "i");
+
+  for (const line of text.split(/\r?\n/)) {
+    const match = line.match(pattern);
+    if (match?.[1]) {
+      return match[1].trim();
+    }
+  }
+
+  return undefined;
 }
 
 export async function POST(request: Request) {
@@ -62,42 +81,95 @@ export async function POST(request: Request) {
 
     const reference =
       (parsed && typeof parsed.transactionRef === "string" && parsed.transactionRef) ||
-      extractValue(normalizedText, /TXN-[A-Z0-9-]+/i) ||
-      extractValue(normalizedText, /(?:transaction\s*(?:reference|ref|id)|payment\s*(?:reference|ref)|reference|ref)\s*[:#-]\s*([A-Z0-9-]+)/i);
+      extractLabeledValue(normalizedText, [
+        "transaction reference", "transaction ref", "transaction id", "transaction no", "transaction number",
+        "payment reference", "payment ref", "payment id", "transfer reference", "transfer ref", "transfer id",
+        "reference no", "reference number", "reference id", "ref no", "ref number", "ref id", "reference", "ref",
+        "rrn", "utr",
+      ]) ||
+      extractValue(normalizedText, /TXN-[A-Z0-9-]+/i);
+    const sessionId =
+      (parsed && typeof parsed.sessionId === "string" && parsed.sessionId) ||
+      extractLabeledValue(normalizedText, ["nip session id", "session id", "session reference", "session ref", "session no", "session number"]);
 
-    const amountText = extractValue(normalizedText, /amountMinor[^\d]*(\d+)/i);
-    const majorAmountText =
-      extractValue(normalizedText, /(?:amount(?:\s+paid)?|total(?:\s+amount)?)\s*[:#-]?\s*(?:(?:NGN|GHS|KES|USD|GBP|EUR|N)\s*)?([\d,]+(?:\.\d{1,2})?)/i) ||
-      extractValue(normalizedText, /[\u20A6$]\s*([\d,]+(?:\.\d{1,2})?)/);
+    const amountMinorText = parsed && typeof parsed.amountMinor === "number"
+      ? String(parsed.amountMinor)
+      : extractLabeledValue(normalizedText, ["amount minor", "amountMinor"]);
+    const amountLabelValue = extractLabeledValue(normalizedText, ["amount paid", "total amount", "amount", "total", "paid"]);
+    const amountNumberText = amountLabelValue?.match(/[\d][\d,]*(?:\.\d{1,2})?/)?.[0];
     const amountMinor = parsed && typeof parsed.amountMinor === "number"
       ? parsed.amountMinor
-      : amountText
-        ? Number(amountText)
-        : majorAmountText
-          ? Math.round(Number(majorAmountText.replace(/,/g, "")) * 100)
+      : amountMinorText
+        ? Number(amountMinorText)
+        : amountNumberText
+          ? Math.round(Number(amountNumberText.replace(/,/g, "")) * 100)
           : undefined;
 
-    const currency =
+    const detectedCurrency =
       (parsed && typeof parsed.currency === "string" && parsed.currency) ||
-      extractValue(normalizedText, /currency[^A-Z]*([A-Z]{3})/i) ||
+      extractLabeledValue(normalizedText, ["currency", "currency code"])?.match(/\b(NGN|GHS|KES|USD|GBP|EUR)\b/i)?.[1] ||
       extractValue(normalizedText, /\b(NGN|GHS|KES|USD|GBP|EUR)\b/i) ||
-      (/\u20A6/.test(normalizedText) ? "NGN" : undefined);
+      (/\u20A6|\bN(?:IGERIAN)?\s+NAIRA\b/i.test(`${normalizedText}\n${amountLabelValue ?? ""}`) ? "NGN" : undefined) ||
+      (/\bN\s*[\d,]+(?:\.\d{1,2})?/i.test(amountLabelValue ?? "") ? "NGN" : undefined);
+    const inferredNgn = !detectedCurrency && (/\bNIGERIA\b/i.test(normalizedText) || /\bMONIEPOINT(?:\s+MICROFINANCE)?(?:\s+BANK)?\b/i.test(normalizedText));
+    const currency = detectedCurrency || (inferredNgn ? "NGN" : undefined);
 
     const recipientId =
       (parsed && typeof parsed.recipientId === "string" && parsed.recipientId) ||
-      extractValue(normalizedText, /recipientId[^A-Z0-9_]*([A-Z0-9_]+)/i) ||
-      extractValue(normalizedText, /(?:recipient(?:\s*(?:id|name|account))?|beneficiary(?:\s*(?:id|name|account))?|credited\s+to|paid\s+to)\s*[:#-]\s*([^\r\n]+)/i);
+      extractLabeledValue(normalizedText, ["recipient id", "recipient account", "beneficiary id", "beneficiary account", "merchant id"]);
+
+    const recipientName =
+      (parsed && typeof parsed.recipientName === "string" && parsed.recipientName) ||
+      extractLabeledValue(normalizedText, ["beneficiary name", "recipient name", "receiver name", "beneficiary", "recipient", "receiver"]);
+
+    const claimedStatusText = extractLabeledValue(normalizedText, ["transaction status", "payment status", "status"]);
+    const claimedStatus = claimedStatusText && /pending|processing|in progress/i.test(claimedStatusText)
+      ? "PENDING"
+      : claimedStatusText && /revers|refund/i.test(claimedStatusText)
+        ? "REVERSED"
+        : claimedStatusText && /fail|declin|unsuccess/i.test(claimedStatusText)
+          ? "FAILED"
+          : claimedStatusText && /success|complete|paid/i.test(claimedStatusText)
+            ? "SUCCESS"
+            : "NOT_READ";
+    const imageReadability = ocrConfidence === undefined
+      ? "NOT_APPLICABLE"
+      : ocrConfidence >= 80
+        ? `HIGH (${ocrConfidence}%)`
+        : ocrConfidence >= 50
+          ? `MEDIUM (${ocrConfidence}%)`
+          : `LOW (${ocrConfidence}%)`;
 
     const orderRef =
       (parsed && typeof parsed.orderRef === "string" && parsed.orderRef) ||
+      extractLabeledValue(normalizedText, ["order reference", "order ref", "order id", "order no", "order number"]) ||
       extractValue(normalizedText, /ORD-[A-Z0-9-]+/i);
 
-    if (!reference || !amountMinor || amountMinor <= 0 || !currency || !recipientId) {
+    const missingFields = [
+      !reference && "transaction reference",
+      (!amountMinor || amountMinor <= 0) && "amount",
+      !currency && "currency",
+    ].filter((field): field is string => Boolean(field));
+
+    if (missingFields.length > 0) {
       return NextResponse.json(
         {
           outcome: "UNVERIFIED_RECEIPT",
-          explanation: "Some receipt fields could not be read. Review the extracted values and enter any missing details manually.",
-          details: { fileName, reason: "receipt_fields_missing", ...(ocrConfidence === undefined ? {} : { ocrConfidence }) },
+          explanation: "Some receipt details could not be read. Enter the missing transaction reference, amount, or currency manually.",
+          details: {
+            fileName,
+            reason: "receipt_fields_missing",
+            missingFields: missingFields.join(", "),
+            ocrPreview: normalizedText.slice(0, 500) || "No text was detected in the image.",
+            ...(reference ? { reference } : {}),
+            ...(amountMinor === undefined ? {} : { amountMinor }),
+            ...(currency ? { currency } : {}),
+            ...(recipientId ? { recipientId } : {}),
+            ...(recipientName ? { recipientName } : {}),
+            claimedStatus,
+            imageReadability,
+            ...(ocrConfidence === undefined ? {} : { ocrConfidence }),
+          },
           ...(reference ? { reference } : {}),
           ...(amountMinor === undefined ? {} : { amountMinor }),
           ...(currency ? { currency } : {}),
@@ -107,28 +179,66 @@ export async function POST(request: Request) {
       );
     }
 
+    const expectedRecipientIdValue = formData.get("expectedRecipientId");
+    const expectedRecipientId = typeof expectedRecipientIdValue === "string" && expectedRecipientIdValue.trim()
+      ? expectedRecipientIdValue.trim()
+      : undefined;
+    const transactions = await getTransactions();
+    const recordResult = expectedRecipientId
+      ? verifyPaymentClaim(
+          { reference, expectedAmountMinor: amountMinor, expectedCurrency: currency, expectedRecipientId },
+          transactions
+        )
+      : {
+          outcome: "UNVERIFIED_RECEIPT" as const,
+          explanation: "Set the merchant's expected recipient before checking the payment record.",
+          details: { reason: "expected_recipient_missing" },
+        };
+    const matchedRecord = transactions.find((transaction) => transaction.transactionRef === reference);
+    const claimedRecordStatus = matchedRecord?.isAvailable ? claimedStatus : "NOT_CHECKED";
+    const statusConflict = Boolean(
+      matchedRecord?.isAvailable &&
+      claimedStatus !== "NOT_READ" &&
+      matchedRecord.status !== claimedStatus
+    );
+    const outcome = statusConflict ? "SUSPICIOUS_RECEIPT" : recordResult.outcome;
+    const explanation = statusConflict
+      ? `The receipt claims ${claimedStatus.toLowerCase()}, but the trusted transaction record says ${matchedRecord?.status.toLowerCase()}.`
+      : recordResult.outcome === "PAYMENT_VERIFIED"
+        ? "The reference, amount, currency, recipient, and successful status match a trusted transaction record in the local demo ledger."
+        : recordResult.explanation;
+
     const receiptToken = parsed && typeof parsed.receiptToken === "string"
       ? parsed.receiptToken
       : undefined;
 
     return NextResponse.json({
-      outcome: "UNVERIFIED_RECEIPT",
-      explanation: "Receipt fields were extracted. Review them, then verify the payment against transaction records before treating it as authentic.",
+      outcome,
+      explanation,
       details: {
         fileName,
         reference,
         amountMinor,
         currency,
-        recipientId,
+        ...(recipientId ? { recipientId } : {}),
+        ...(recipientName ? { recipientName } : {}),
+        ...(sessionId ? { sessionId } : {}),
         orderRef,
         source: isImage ? "on-device OCR" : "receipt file",
+        claimedStatus,
+        matchedRecordStatus: claimedRecordStatus,
+        recordCheck: outcome,
+        recordSource: "local demo ledger; not a live bank connection",
+        imageReadability,
+        ...(statusConflict ? { statusConflict: true } : {}),
+        ...(inferredNgn ? { currencySource: "inferred from Nigerian bank details" } : {}),
         ...(ocrConfidence === undefined ? {} : { ocrConfidence }),
       },
       ...(receiptToken ? { receiptToken } : {}),
       reference,
       amountMinor,
       currency,
-      recipientId,
+      ...(recipientId ? { recipientId } : {}),
       orderRef,
     });
   } catch {

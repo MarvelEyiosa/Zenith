@@ -191,10 +191,12 @@ export default function Home() {
     setIsUploading(true);
     setUploadResult(null);
     setUploadProgress("");
+    setReceiptToken("");
     let worker: ReceiptOcrWorker | null = null;
 
     try {
       const formData = new FormData();
+      formData.append("expectedRecipientId", expectedRecipientId);
       const isImage = file.type.startsWith("image/") || /\.(png|jpe?g|webp|bmp|tiff?)$/i.test(file.name);
 
       if (isImage) {
@@ -222,20 +224,21 @@ export default function Home() {
         setReceiptToken(data.receiptToken);
       }
 
-      if (data.reference) {
-        setReference(data.reference);
+      const isPartialReceipt = data.details?.reason === "receipt_fields_missing";
+      if (data.reference || isPartialReceipt) {
+        setReference(data.reference ?? "");
       }
 
-      if (typeof data.amountMinor === "number") {
-        setExpectedAmountMinor(String(data.amountMinor));
+      if (typeof data.amountMinor === "number" || isPartialReceipt) {
+        setExpectedAmountMinor(typeof data.amountMinor === "number" ? String(data.amountMinor) : "");
       }
 
-      if (data.currency) {
-        setExpectedCurrency(String(data.currency));
+      if (data.currency || isPartialReceipt) {
+        setExpectedCurrency(data.currency ?? "");
       }
 
-      if (data.recipientId) {
-        setExpectedRecipientId(String(data.recipientId));
+      if (data.recipientId || isPartialReceipt) {
+        setExpectedRecipientId(data.recipientId ?? "");
       }
     } catch (error) {
       setUploadResult({
@@ -369,7 +372,7 @@ export default function Home() {
           </button>
         </section>
 
-        <input ref={fileInputRef} type="file" accept=".json,.txt,.png,.jpg,.jpeg,.pdf" onChange={handleReceiptUpload} className="hidden" />
+        <input ref={fileInputRef} type="file" accept=".json,.txt,image/*" onChange={handleReceiptUpload} className="hidden" />
         <input ref={scanInputRef} type="file" accept="image/*" capture="environment" onChange={handleReceiptUpload} className="hidden" />
         {uploadProgress && <p role="status" className="text-center text-sm text-sky-200">{uploadProgress}</p>}
 
@@ -472,12 +475,20 @@ export default function Home() {
             <h3 className="mt-3 text-xl font-semibold text-white">Receipt upload result</h3>
             <p className="mt-2 text-sm text-slate-300">{uploadResult.explanation}</p>
             <div className="mt-3 space-y-2 text-xs text-slate-300">
-              {Object.entries(uploadResult.details).map(([key, value]) => (
+              {Object.entries(uploadResult.details).filter(([key]) => key !== "ocrPreview").map(([key, value]) => (
                 <div key={key} className="flex justify-between gap-3 border-b border-slate-800 pb-1">
                   <span className="text-slate-400">{key}</span>
                   <span className="text-right text-slate-200">{String(value)}</span>
                 </div>
               ))}
+              {typeof uploadResult.details.ocrPreview === "string" && (
+                <details className="pt-1">
+                  <summary className="cursor-pointer text-sky-300">Show recognized text</summary>
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-slate-950 p-2 text-[11px] text-slate-300">
+                    {uploadResult.details.ocrPreview}
+                  </pre>
+                </details>
+              )}
             </div>
           </section>
         )}

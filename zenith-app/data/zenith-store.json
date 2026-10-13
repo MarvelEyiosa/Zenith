@@ -150,6 +150,15 @@
       "outcome": "PAYMENT_VERIFIED",
       "explanation": "The signed receipt matches the trusted payment record and the payment is currently successful.",
       "createdAt": "2026-10-11T10:27:14.419Z"
+    },
+    {
+      "transactionRef": "",
+      "expectedAmountMinor": 36000000,
+      "expectedCurrency": "",
+      "expectedRecipientId": "",
+      "outcome": "UNVERIFIED_RECEIPT",
+      "explanation": "No payment reference was supplied.",
+      "createdAt": "2026-10-11T11:10:44.957Z"
     }
   ],
   "orderAttempts": [
